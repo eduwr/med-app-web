@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+    <div>
+        Video: <select id="camera"></select>
+    </div>>
+
+    <video autoplay id="video-camera"></video>
+    <p>
+        <button id="take-profile-picture" type="button" autofocus="true">TAKE PHOTO</button>
+    </p>
+    <canvas id="profile-pic-canvas" style="display: none;"></canvas>
+    <div>
+        <img id="profile-pic-output">
+    </div>
+    <script>
+
+        //É preciso rodar a aplicação em um servidor node.js para acesssar microfone e câmera. Não tem como rodar no browser diretamente
+
+        
+        const videoSelect = document.querySelector('#camera');
+        const videoArea = document.querySelector("video");
+        const profilePicCanvas = document.querySelector('#profile-pic-canvas');
+        const profilePicOutput = document.querySelector('#profile-pic-output');
+        const takePicButton = document.querySelector("#take-profile-picture");
+        const videoTag = document.querySelector("#video-camera");
+        
+        const width = 240; //desired width
+        let height = 0;  // calculated lated based on image ratio
+        let streaming = false; // Used to determine when the video is loaded
+
+        takePicButton.addEventListener("click", (e) => {
+            console.log(profilePicCanvas, profilePicOutput, takePicButton, videoTag)
+            takeProfilePic();
+            e.preventDefault();
+        }, false)
+
+        startStream();
+        getCameras();
+
+
+        // set height based on aspect ratio of image
+        videoTag.addEventListener('canplay', (e) => {
+            if(!streaming) {
+                height = videoTag.videoHeight / (videoTag.videoWidth/width);
+
+                if (isNaN(height)) {
+                    height = width / (4/3)
+                }
+            }
+
+            videoTag.setAttribute('width', width);
+            videoTag.setAttribute('height', height);
+            profilePicCanvas.setAttribute('width', width);
+            profilePicCanvas.setAttribute('height', height);
+            streaming = true
+        })
+
+    
+        // manipulates de pic and attach to img tag.
+        function takeProfilePic() {
+            const context = profilePicCanvas.getContext('2d')
+            if (width && height) {
+                profilePicCanvas.width = width;
+                profilePicCanvas.height = height;
+                context.drawImage(videoTag, 0, 0, width, height);
+
+                const data = profilePicCanvas.toDataURL('image/png');
+     
+                profilePicOutput.setAttribute('src', data)
+            }
+        }
+
+
+        async function getCameras() {
+
+            // list all attached devices
+            const sourceInfos = await navigator.mediaDevices.enumerateDevices()
+     
+            sourceInfos.forEach((source, idx) => {
+                console.log(idx, source)
+                const option = document.createElement('option');
+                option.value = source.id;
+                if (source.kind.includes('video')) {
+                    option.text = source.label || 'camera' + (idx + 1)
+                    videoSelect.appendChild(option)
+                }
+
+            })
+        }
+
+        
+        function startStream() {
+            //- getUserMedia Api - acessa dados do usuário
+             // returns getUserMedia even if experimental
+            navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+            const videoSource = videoSelect.value
+            console.log(videoSource)
+
+            // constraints - to the media
+            const constraints = {
+                audio: {
+                    
+                },
+                video: {
+                    mandatory: {
+                        maxWidth: 240,
+                        maxHeight: 240,
+                        minHeight: 240,
+                        minWidth: 240,
+                    },
+                    optional: [{
+                        sourceId: videoSource
+                    }]
+                }
+            }
+
+            navigator.getUserMedia(constraints, onSuccess, onError)
+        }
+
+
+        function onSuccess(stream) {
+            console.log("Success! We have a stream", stream);
+
+            //referenciando o stream do usuário ao objeto de vídeo
+            videoArea.srcObject = stream;
+            videoArea.className = "grayscale-filter";
+            videoArea.play()
+        }
+
+        function onError(error) {
+            console.log('Error with getUserMedia: ', error)
+        }
+    </script>
+</body>
+</html>
