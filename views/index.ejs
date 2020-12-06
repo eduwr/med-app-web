@@ -5,20 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <link rel="stylesheet" type="text/css" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
     <div>
         Video: <select id="camera"></select>
-    </div>>
+    </div>
 
     <video autoplay id="video-camera"></video>
-    <p>
-        <button id="take-profile-picture" type="button" autofocus="true">TAKE PHOTO</button>
-    </p>
-    <canvas id="profile-pic-canvas" style="display: none;"></canvas>
+    
     <div>
-        <img id="profile-pic-output">
+        <label>Your Name</label><input type="text" id="myName">
+        <label>Message</label><input type="text" id="myMessage">
+        <input type="submit" id="sendMessage">
+        <div id="chatArea">Message Output: </br></div>
     </div>
+
     <script>
 
         //É preciso rodar a aplicação em um servidor node.js para acesssar microfone e câmera. Não tem como rodar no browser diretamente
@@ -26,56 +28,40 @@
         
         const videoSelect = document.querySelector('#camera');
         const videoArea = document.querySelector("video");
-        const profilePicCanvas = document.querySelector('#profile-pic-canvas');
-        const profilePicOutput = document.querySelector('#profile-pic-output');
-        const takePicButton = document.querySelector("#take-profile-picture");
-        const videoTag = document.querySelector("#video-camera");
+     
+        const myName = document.getElementById("myName");
+        const myMessage = document.getElementById("myMessage");
+        const sendMessage = document.getElementById("sendMessage");
+        const chatArea = document.getElementById("chatArea");
+        const ROOM = "chat";
         
         const width = 240; //desired width
         let height = 0;  // calculated lated based on image ratio
         let streaming = false; // Used to determine when the video is loaded
 
-        takePicButton.addEventListener("click", (e) => {
-            console.log(profilePicCanvas, profilePicOutput, takePicButton, videoTag)
-            takeProfilePic();
-            e.preventDefault();
-        }, false)
 
-        startStream();
-        getCameras();
+        io = io.connect();
+
+        io.emit('ready', ROOM)
+
+        io.on('announce', (data) => {
+            displayMessage(data.message)
+        });
+
+        io.on('message', ({author, message}) => {
+            displayMessage(`${author}: ${message}`)
+        });
 
 
-        // set height based on aspect ratio of image
-        videoTag.addEventListener('canplay', (e) => {
-            if(!streaming) {
-                height = videoTag.videoHeight / (videoTag.videoWidth/width);
-
-                if (isNaN(height)) {
-                    height = width / (4/3)
-                }
-            }
-
-            videoTag.setAttribute('width', width);
-            videoTag.setAttribute('height', height);
-            profilePicCanvas.setAttribute('width', width);
-            profilePicCanvas.setAttribute('height', height);
-            streaming = true
-        })
-
-    
-        // manipulates de pic and attach to img tag.
-        function takeProfilePic() {
-            const context = profilePicCanvas.getContext('2d')
-            if (width && height) {
-                profilePicCanvas.width = width;
-                profilePicCanvas.height = height;
-                context.drawImage(videoTag, 0, 0, width, height);
-
-                const data = profilePicCanvas.toDataURL('image/png');
-     
-                profilePicOutput.setAttribute('src', data)
-            }
+        function displayMessage(message) {
+            chatArea.innerHTML = chatArea.innerHTML + "<br/>" + message;
         }
+
+        sendMessage.addEventListener('click', (e) => {
+            io.emit('send', {"author":myName.value, "message":myMessage.value, "room":ROOM})
+            e.preventDefault();
+        }, false);
+
 
 
         async function getCameras() {
@@ -106,20 +92,8 @@
 
             // constraints - to the media
             const constraints = {
-                audio: {
-                    
-                },
-                video: {
-                    mandatory: {
-                        maxWidth: 240,
-                        maxHeight: 240,
-                        minHeight: 240,
-                        minWidth: 240,
-                    },
-                    optional: [{
-                        sourceId: videoSource
-                    }]
-                }
+                audio: false,
+                video: false
             }
 
             navigator.getUserMedia(constraints, onSuccess, onError)
@@ -131,7 +105,6 @@
 
             //referenciando o stream do usuário ao objeto de vídeo
             videoArea.srcObject = stream;
-            videoArea.className = "grayscale-filter";
             videoArea.play()
         }
 
